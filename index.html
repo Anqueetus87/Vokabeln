@@ -42,6 +42,16 @@
 
   <section id="viewList">
     <div class="card">
+      <strong>Sicherung</strong>
+      <div class="row" style="margin-top:8px;flex-wrap:wrap">
+        <button type="button" class="secondary" id="btnFile">📁 Speicherdatei verbinden</button>
+        <button type="button" class="secondary" id="btnExport">⬇ Export</button>
+        <button type="button" class="secondary" id="btnImport">⬆ Import</button>
+        <input type="file" id="fileIn" accept=".json,application/json" class="hidden">
+      </div>
+      <div class="hint" id="fileStatus" style="text-align:left"></div>
+    </div>
+    <div class="card">
       <div id="addForm">
         <div class="row">
           <input id="de" placeholder="Deutsch" required autocomplete="off">
@@ -81,7 +91,7 @@
 const KEY = 'vokabeln';
 let words = [];
 try { words = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) {}
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(words)); } catch (e) {} };
+let save = () => { try { localStorage.setItem(KEY, JSON.stringify(words)); } catch (e) {} };
 const $ = id => document.getElementById(id);
 
 function render() {
@@ -163,6 +173,95 @@ function submitAnswer() {
 }
 $('check').onclick = submitAnswer;
 $('answer').addEventListener('keydown', e => { if (e.key === 'Enter') submitAnswer(); });
+
+// ---- Sicherung: Export/Import + automatische Speicherdatei (Chrome/Edge) ----
+const status = t => { $('fileStatus').textContent = t; };
+const asJson = () => JSON.stringify({ vokabeln: words }, null, 2);
+let fileHandle = null;
+
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('vokabeln-db', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function kv(mode, fn) {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const req = fn(db.transaction('kv', mode).objectStore('kv'));
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+
+async function writeFile() {
+  if (!fileHandle) return;
+  try {
+    const w = await fileHandle.createWritable();
+    await w.write(asJson());
+    await w.close();
+    status('Gespeichert in „' + fileHandle.name + '"');
+  } catch (e) { status('Speichern in Datei fehlgeschlagen – bitte Datei neu verbinden.'); }
+}
+// jede Änderung zusätzlich in die Datei schreiben
+const baseSave = save;
+save = () => { baseSave(); writeFile(); };
+
+function applyData(text) {
+  const d = JSON.parse(text);
+  const list = Array.isArray(d) ? d : d.vokabeln;
+  if (!Array.isArray(list)) throw new Error('format');
+  words = list.filter(w => w && w.de && w.en).map(w => ({ de: String(w.de), en: String(w.en) }));
+  save(); render();
+}
+
+$('btnExport').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([asJson()], { type: 'application/json' }));
+  a.download = 'vokabeln.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+$('btnImport').onclick = () => $('fileIn').click();
+$('fileIn').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try { applyData(await f.text()); status(words.length + ' Vokabeln importiert.'); }
+  catch (err) { status('Import fehlgeschlagen: keine gültige Vokabeldatei.'); }
+};
+
+$('btnFile').onclick = async () => {
+  if (!window.showSaveFilePicker) { status('Dein Browser unterstützt das nicht – bitte Export/Import nutzen (Chrome/Edge können es).'); return; }
+  try {
+    if (fileHandle && (await fileHandle.requestPermission({ mode: 'readwrite' })) === 'granted') { await writeFile(); return; }
+    const stored = fileHandle || await kv('readonly', st => st.get('handle'));
+    if (stored && (await stored.requestPermission({ mode: 'readwrite' })) === 'granted') {
+      fileHandle = stored;
+      await loadFromFile();
+      return;
+    }
+    fileHandle = await showSaveFilePicker({ suggestedName: 'vokabeln.json', types: [{ description: 'Vokabeln', accept: { 'application/json': ['.json'] } }] });
+    await kv('readwrite', st => st.put(fileHandle, 'handle'));
+    const text = await (await fileHandle.getFile()).text();
+    if (text.trim()) { try { applyData(text); } catch (e) { await writeFile(); } } else await writeFile();
+  } catch (e) { if (e.name !== 'AbortError') status('Datei konnte nicht verbunden werden (in dieser Ansicht evtl. blockiert) – Export/Import nutzen.'); }
+};
+async function loadFromFile() {
+  const text = await (await fileHandle.getFile()).text();
+  if (text.trim()) applyData(text); else await writeFile();
+  status('Verbunden mit „' + fileHandle.name + '"');
+}
+(async () => {
+  try {
+    const stored = window.showSaveFilePicker && await kv('readonly', st => st.get('handle'));
+    if (stored) {
+      fileHandle = stored;
+      status('Speicherdatei „' + stored.name + '" – zum Aktivieren auf „Speicherdatei verbinden" klicken.');
+    }
+  } catch (e) {}
+})();
 
 render();
 </script>
