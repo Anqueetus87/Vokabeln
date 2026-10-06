@@ -42,13 +42,13 @@
 
   <section id="viewList">
     <div class="card">
-      <form id="addForm">
+      <div id="addForm">
         <div class="row">
           <input id="de" placeholder="Deutsch" required autocomplete="off">
           <input id="en" placeholder="Englisch" required autocomplete="off">
         </div>
-        <button type="submit" style="width:100%">Hinzufügen</button>
-      </form>
+        <button type="button" id="addBtn" style="width:100%">Hinzufügen</button>
+      </div>
     </div>
     <div class="card">
       <strong id="count"></strong>
@@ -67,10 +67,10 @@
     <div class="card" id="quizCard">
       <div class="hint" id="dirLabel"></div>
       <div class="q" id="question"></div>
-      <form id="quizForm">
+      <div id="quizForm">
         <input id="answer" placeholder="Deine Antwort…" autocomplete="off" autocapitalize="off" spellcheck="false">
-        <button type="submit" id="check" style="width:100%;margin-top:8px">Prüfen</button>
-      </form>
+        <button type="button" id="check" style="width:100%;margin-top:8px">Prüfen</button>
+      </div>
       <div class="feedback" id="feedback"></div>
       <div class="hint" id="score"></div>
     </div>
@@ -99,12 +99,15 @@ function render() {
   });
 }
 
-$('addForm').onsubmit = e => {
-  e.preventDefault();
-  words.push({ de: $('de').value.trim(), en: $('en').value.trim() });
+function addWord() {
+  const de = $('de').value.trim(), en = $('en').value.trim();
+  if (!de || !en) { (de ? $('en') : $('de')).focus(); return; }
+  words.push({ de, en });
   save(); render();
   $('de').value = ''; $('en').value = ''; $('de').focus();
-};
+}
+$('addBtn').onclick = addWord;
+['de','en'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') addWord(); }));
 
 function show(view) {
   $('viewList').classList.toggle('hidden', view !== 'list');
@@ -145,8 +148,7 @@ function next() {
   $('answer').focus();
 }
 
-$('quizForm').onsubmit = e => {
-  e.preventDefault();
+function submitAnswer() {
   if (!current) return;
   if (answered) { next(); return; }
   const solution = dir === 'de-en' ? current.en : current.de;
@@ -158,7 +160,9 @@ $('quizForm').onsubmit = e => {
   $('score').textContent = `Richtig: ${correct} / ${total}`;
   answered = true;
   $('check').textContent = 'Weiter';
-};
+}
+$('check').onclick = submitAnswer;
+$('answer').addEventListener('keydown', e => { if (e.key === 'Enter') submitAnswer(); });
 
 render();
 </script>
