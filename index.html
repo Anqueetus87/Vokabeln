@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vokabeltrainer</title>
+<style>
+  :root { --bg:#f4f6fb; --card:#fff; --text:#1f2937; --muted:#6b7280; --accent:#4f46e5; --ok:#16a34a; --bad:#dc2626; --line:#e5e7eb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111827; --card:#1f2937; --text:#f3f4f6; --muted:#9ca3af; --line:#374151; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:640px; margin:0 auto; padding:16px; }
+  h1 { text-align:center; }
+  .card { background:var(--card); border-radius:12px; padding:16px; margin-bottom:16px; box-shadow:0 1px 4px rgba(0,0,0,.1); }
+  .tabs { display:flex; gap:8px; margin-bottom:16px; }
+  .tabs button { flex:1; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 14px; font-size:1rem; cursor:pointer; }
+  button.secondary { background:transparent; color:var(--text); border:1px solid var(--line); }
+  button.active { outline:2px solid var(--accent); outline-offset:2px; }
+  input, select { width:100%; padding:10px; font-size:1rem; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--text); }
+  .row { display:flex; gap:8px; margin-bottom:8px; }
+  ul { list-style:none; padding:0; margin:0; }
+  li { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--line); }
+  li span { flex:1; }
+  li button { padding:4px 10px; background:var(--bad); }
+  .q { font-size:1.6rem; text-align:center; margin:16px 0; font-weight:600; }
+  .hint { color:var(--muted); text-align:center; font-size:.9rem; }
+  .feedback { text-align:center; min-height:1.5em; margin-top:12px; font-weight:600; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>📚 Vokabeltrainer</h1>
+  <div class="tabs">
+    <button id="tabList" class="secondary active">Vokabeln</button>
+    <button id="tabQuiz" class="secondary">Abfragen</button>
+  </div>
+
+  <section id="viewList">
+    <div class="card">
+      <form id="addForm">
+        <div class="row">
+          <input id="de" placeholder="Deutsch" required autocomplete="off">
+          <input id="en" placeholder="Englisch" required autocomplete="off">
+        </div>
+        <button type="submit" style="width:100%">Hinzufügen</button>
+      </form>
+    </div>
+    <div class="card">
+      <strong id="count"></strong>
+      <ul id="words"></ul>
+    </div>
+  </section>
+
+  <section id="viewQuiz" class="hidden">
+    <div class="card">
+      <select id="mode">
+        <option value="de-en">Deutsch → Englisch</option>
+        <option value="en-de">Englisch → Deutsch</option>
+        <option value="mix">Gemischt</option>
+      </select>
+    </div>
+    <div class="card" id="quizCard">
+      <div class="hint" id="dirLabel"></div>
+      <div class="q" id="question"></div>
+      <form id="quizForm">
+        <input id="answer" placeholder="Deine Antwort…" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button type="submit" id="check" style="width:100%;margin-top:8px">Prüfen</button>
+      </form>
+      <div class="feedback" id="feedback"></div>
+      <div class="hint" id="score"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const KEY = 'vokabeln';
+let words = [];
+try { words = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(words)); } catch (e) {} };
+const $ = id => document.getElementById(id);
+
+function render() {
+  $('count').textContent = words.length + ' Vokabeln';
+  $('words').innerHTML = '';
+  words.forEach((w, i) => {
+    const li = document.createElement('li');
+    const s = document.createElement('span');
+    s.textContent = w.de + '  –  ' + w.en;
+    const b = document.createElement('button');
+    b.textContent = '✕';
+    b.onclick = () => { words.splice(i, 1); save(); render(); };
+    li.append(s, b);
+    $('words').append(li);
+  });
+}
+
+$('addForm').onsubmit = e => {
+  e.preventDefault();
+  words.push({ de: $('de').value.trim(), en: $('en').value.trim() });
+  save(); render();
+  $('de').value = ''; $('en').value = ''; $('de').focus();
+};
+
+function show(view) {
+  $('viewList').classList.toggle('hidden', view !== 'list');
+  $('viewQuiz').classList.toggle('hidden', view !== 'quiz');
+  $('tabList').classList.toggle('active', view === 'list');
+  $('tabQuiz').classList.toggle('active', view === 'quiz');
+  if (view === 'quiz') { correct = 0; total = 0; next(); }
+}
+$('tabList').onclick = () => show('list');
+$('tabQuiz').onclick = () => show('quiz');
+$('mode').onchange = () => next();
+
+let current = null, dir = 'de-en', answered = false, correct = 0, total = 0, last = -1;
+const norm = s => s.trim().toLowerCase().replace(/\s+/g, ' ');
+
+function next() {
+  $('feedback').textContent = '';
+  $('answer').value = '';
+  answered = false;
+  $('check').textContent = 'Prüfen';
+  if (!words.length) {
+    current = null;
+    $('dirLabel').textContent = '';
+    $('question').textContent = 'Noch keine Vokabeln – füge zuerst welche hinzu.';
+    $('quizForm').classList.add('hidden');
+    return;
+  }
+  $('quizForm').classList.remove('hidden');
+  let i;
+  do { i = Math.floor(Math.random() * words.length); } while (words.length > 1 && i === last);
+  last = i;
+  current = words[i];
+  const m = $('mode').value;
+  dir = m === 'mix' ? (Math.random() < .5 ? 'de-en' : 'en-de') : m;
+  $('dirLabel').textContent = dir === 'de-en' ? 'Deutsch → Englisch' : 'Englisch → Deutsch';
+  $('question').textContent = dir === 'de-en' ? current.de : current.en;
+  $('score').textContent = total ? `Richtig: ${correct} / ${total}` : '';
+  $('answer').focus();
+}
+
+$('quizForm').onsubmit = e => {
+  e.preventDefault();
+  if (!current) return;
+  if (answered) { next(); return; }
+  const solution = dir === 'de-en' ? current.en : current.de;
+  const ok = norm($('answer').value) === norm(solution);
+  total++; if (ok) correct++;
+  const fb = $('feedback');
+  fb.className = 'feedback ' + (ok ? 'ok' : 'bad');
+  fb.textContent = ok ? '✓ Richtig!' : '✗ Falsch – richtig ist: ' + solution;
+  $('score').textContent = `Richtig: ${correct} / ${total}`;
+  answered = true;
+  $('check').textContent = 'Weiter';
+};
+
+render();
+</script>
+</body>
+</html>
