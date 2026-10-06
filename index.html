@@ -19,28 +19,65 @@
   button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 14px; font-size:1rem; cursor:pointer; }
   button.secondary { background:transparent; color:var(--text); border:1px solid var(--line); }
   button.active { outline:2px solid var(--accent); outline-offset:2px; }
-  input, select { width:100%; padding:10px; font-size:1rem; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--text); }
+  button.danger { background:var(--bad); }
+  input[type=text], select { width:100%; padding:10px; font-size:1rem; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--text); }
   .row { display:flex; gap:8px; margin-bottom:8px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
   ul { list-style:none; padding:0; margin:0; }
   li { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--line); }
   li span { flex:1; }
   li button { padding:4px 10px; background:var(--bad); }
+  label.check { display:flex; align-items:center; gap:10px; padding:8px 0; font-size:1.05rem; }
+  label.check input { width:20px; height:20px; }
   .q { font-size:1.6rem; text-align:center; margin:16px 0; font-weight:600; }
   .hint { color:var(--muted); text-align:center; font-size:.9rem; }
-  .feedback { text-align:center; min-height:1.5em; margin-top:12px; font-weight:600; }
-  .ok { color:var(--ok); } .bad { color:var(--bad); }
-  .hidden { display:none; }
+  .big { font-size:4rem; text-align:center; line-height:1; margin:8px 0; }
+  .feedback { text-align:center; margin-top:12px; font-size:1.1rem; }
+  .ok { color:var(--ok); font-weight:600; } .bad { color:var(--bad); font-weight:600; }
+  .x { color:var(--bad); text-decoration:line-through; }
+  .m { color:var(--ok); text-decoration:underline; font-weight:700; }
+  .full { width:100%; margin-top:8px; }
+  .bar { height:8px; background:var(--line); border-radius:4px; overflow:hidden; margin:8px 0; }
+  .bar div { height:100%; background:var(--ok); width:0; transition:width .3s; }
+  .hidden { display:none !important; }
 </style>
 </head>
 <body>
 <main>
   <h1>📚 Vokabeltrainer</h1>
   <div class="tabs">
-    <button id="tabList" class="secondary active">Vokabeln</button>
-    <button id="tabQuiz" class="secondary">Abfragen</button>
+    <button type="button" id="tabList" class="secondary active">Vokabeln</button>
+    <button type="button" id="tabQuiz" class="secondary">Abfragen</button>
   </div>
 
+  <!-- ===== Vokabeln verwalten ===== -->
   <section id="viewList">
+    <div class="card">
+      <strong>Units / Kategorien</strong>
+      <div class="chips" id="unitChips"></div>
+      <div class="row">
+        <input type="text" id="newUnit" placeholder="Neue Unit, z. B. Unit 2" autocomplete="off">
+        <button type="button" id="addUnitBtn">+</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <strong id="addTitle"></strong>
+      <div class="row" style="margin-top:8px">
+        <input type="text" id="de" placeholder="Deutsch" autocomplete="off">
+        <input type="text" id="en" placeholder="Englisch" autocomplete="off">
+      </div>
+      <button type="button" id="addBtn" class="full">Hinzufügen</button>
+    </div>
+
+    <div class="card">
+      <div class="row" style="align-items:center">
+        <strong id="count" style="flex:1"></strong>
+        <button type="button" id="delUnitBtn" class="secondary">Unit löschen</button>
+      </div>
+      <ul id="words"></ul>
+    </div>
+
     <div class="card">
       <strong>Sicherung</strong>
       <div class="row" style="margin-top:8px;flex-wrap:wrap">
@@ -51,133 +88,319 @@
       </div>
       <div class="hint" id="fileStatus" style="text-align:left"></div>
     </div>
-    <div class="card">
-      <div id="addForm">
-        <div class="row">
-          <input id="de" placeholder="Deutsch" required autocomplete="off">
-          <input id="en" placeholder="Englisch" required autocomplete="off">
-        </div>
-        <button type="button" id="addBtn" style="width:100%">Hinzufügen</button>
-      </div>
-    </div>
-    <div class="card">
-      <strong id="count"></strong>
-      <ul id="words"></ul>
-    </div>
   </section>
 
+  <!-- ===== Abfragen ===== -->
   <section id="viewQuiz" class="hidden">
-    <div class="card">
-      <select id="mode">
-        <option value="de-en">Deutsch → Englisch</option>
-        <option value="en-de">Englisch → Deutsch</option>
-        <option value="mix">Gemischt</option>
-      </select>
+    <!-- Start -->
+    <div id="qSetup">
+      <div class="card hidden" id="resumeCard">
+        <strong>⏸ Pausierter Durchlauf</strong>
+        <div class="hint" id="resumeInfo" style="text-align:left;margin:6px 0"></div>
+        <div class="row">
+          <button type="button" id="resumeBtn" style="flex:1">Fortsetzen</button>
+          <button type="button" id="discardBtn" class="secondary">Verwerfen</button>
+        </div>
+      </div>
+      <div class="card">
+        <strong>Welche Units abfragen?</strong>
+        <div id="unitChecks"></div>
+        <select id="mode" style="margin-top:8px">
+          <option value="de-en">Deutsch → Englisch</option>
+          <option value="en-de">Englisch → Deutsch</option>
+          <option value="mix">Gemischt</option>
+        </select>
+        <button type="button" id="startBtn" class="full">Neuen Durchlauf starten</button>
+        <div class="hint" id="setupMsg"></div>
+      </div>
     </div>
-    <div class="card" id="quizCard">
+
+    <!-- Läuft -->
+    <div class="card hidden" id="qRun">
+      <div class="row" style="align-items:center">
+        <div class="hint" id="progressText" style="flex:1;text-align:left"></div>
+        <button type="button" id="pauseBtn" class="secondary">⏸ Pausieren</button>
+      </div>
+      <div class="bar"><div id="barFill"></div></div>
       <div class="hint" id="dirLabel"></div>
       <div class="q" id="question"></div>
-      <div id="quizForm">
-        <input id="answer" placeholder="Deine Antwort…" autocomplete="off" autocapitalize="off" spellcheck="false">
-        <button type="button" id="check" style="width:100%;margin-top:8px">Prüfen</button>
+      <div id="askBox">
+        <input type="text" id="answer" placeholder="Deine Antwort…" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button type="button" id="check" class="full">Prüfen</button>
       </div>
-      <div class="feedback" id="feedback"></div>
-      <div class="hint" id="score"></div>
+      <div id="fbBox" class="hidden">
+        <div class="big" id="fbIcon"></div>
+        <div class="feedback" id="fbText"></div>
+        <button type="button" id="nextBtn" class="full">Weiter</button>
+      </div>
+    </div>
+
+    <!-- Fertig -->
+    <div class="card hidden" id="qDone">
+      <div class="big">🎉</div>
+      <div class="q">Durchlauf geschafft!</div>
+      <div class="hint" id="doneInfo"></div>
+      <button type="button" id="againBtn" class="full">Neuer Durchlauf</button>
+      <button type="button" id="backBtn" class="secondary full">Zur Auswahl</button>
     </div>
   </section>
 </main>
 
 <script>
-const KEY = 'vokabeln';
-let words = [];
-try { words = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) {}
-let save = () => { try { localStorage.setItem(KEY, JSON.stringify(words)); } catch (e) {} };
 const $ = id => document.getElementById(id);
+const KEY = 'vokabeln2', OLD_KEY = 'vokabeln';
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
-function render() {
-  $('count').textContent = words.length + ' Vokabeln';
+// ---------- Daten ----------
+let state = { units: [], words: [], session: null, activeUnit: null };
+
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(KEY));
+    if (d && Array.isArray(d.units)) { state = Object.assign(state, d); return; }
+  } catch (e) {}
+  try { // Migration von der alten Version (flache Wortliste)
+    const old = JSON.parse(localStorage.getItem(OLD_KEY));
+    if (Array.isArray(old) && old.length) {
+      const u = { id: uid(), name: 'Unit 1' };
+      state.units = [u];
+      state.words = old.map(w => ({ id: uid(), de: w.de, en: w.en, unit: u.id }));
+    }
+  } catch (e) {}
+}
+load();
+if (!state.units.length) state.units.push({ id: uid(), name: 'Unit 1' });
+if (!state.units.some(u => u.id === state.activeUnit)) state.activeUnit = state.units[0].id;
+
+let fileHandle = null;
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  writeFile();
+}
+const unitWords = id => state.words.filter(w => w.unit === id);
+const wordById = id => state.words.find(w => w.id === id);
+
+// ---------- Vokabeln verwalten ----------
+let confirmDel = false;
+
+function renderList() {
+  const u = state.units.find(x => x.id === state.activeUnit);
+  $('unitChips').innerHTML = '';
+  state.units.forEach(x => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'secondary' + (x.id === state.activeUnit ? ' active' : '');
+    b.textContent = `${x.name} (${unitWords(x.id).length})`;
+    b.onclick = () => { state.activeUnit = x.id; confirmDel = false; save(); renderList(); };
+    $('unitChips').append(b);
+  });
+  $('addTitle').textContent = 'Neue Vokabel in „' + u.name + '"';
+  const ws = unitWords(u.id);
+  $('count').textContent = `${u.name}: ${ws.length} Vokabeln`;
+  $('delUnitBtn').textContent = confirmDel ? 'Wirklich löschen? Nochmal klicken' : 'Unit löschen';
+  $('delUnitBtn').className = confirmDel ? 'danger' : 'secondary';
+  $('delUnitBtn').classList.toggle('hidden', state.units.length < 2);
   $('words').innerHTML = '';
-  words.forEach((w, i) => {
+  ws.forEach(w => {
     const li = document.createElement('li');
     const s = document.createElement('span');
     s.textContent = w.de + '  –  ' + w.en;
     const b = document.createElement('button');
+    b.type = 'button';
     b.textContent = '✕';
-    b.onclick = () => { words.splice(i, 1); save(); render(); };
+    b.onclick = () => { state.words = state.words.filter(x => x.id !== w.id); save(); renderList(); };
     li.append(s, b);
     $('words').append(li);
   });
 }
 
+function addUnit() {
+  const name = $('newUnit').value.trim();
+  if (!name) return;
+  const u = { id: uid(), name };
+  state.units.push(u);
+  state.activeUnit = u.id;
+  $('newUnit').value = '';
+  save(); renderList(); $('de').focus();
+}
+$('addUnitBtn').onclick = addUnit;
+$('newUnit').addEventListener('keydown', e => { if (e.key === 'Enter') addUnit(); });
+
+$('delUnitBtn').onclick = () => {
+  if (!confirmDel) { confirmDel = true; renderList(); return; }
+  const id = state.activeUnit;
+  state.units = state.units.filter(u => u.id !== id);
+  state.words = state.words.filter(w => w.unit !== id);
+  state.activeUnit = state.units[0].id;
+  confirmDel = false;
+  save(); renderList();
+};
+
 function addWord() {
   const de = $('de').value.trim(), en = $('en').value.trim();
   if (!de || !en) { (de ? $('en') : $('de')).focus(); return; }
-  words.push({ de, en });
-  save(); render();
+  state.words.push({ id: uid(), de, en, unit: state.activeUnit });
+  save(); renderList();
   $('de').value = ''; $('en').value = ''; $('de').focus();
 }
 $('addBtn').onclick = addWord;
-['de','en'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') addWord(); }));
+['de', 'en'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') addWord(); }));
 
+// ---------- Tabs ----------
 function show(view) {
   $('viewList').classList.toggle('hidden', view !== 'list');
   $('viewQuiz').classList.toggle('hidden', view !== 'quiz');
   $('tabList').classList.toggle('active', view === 'list');
   $('tabQuiz').classList.toggle('active', view === 'quiz');
-  if (view === 'quiz') { correct = 0; total = 0; next(); }
+  if (view === 'list') renderList(); else renderQuiz();
 }
 $('tabList').onclick = () => show('list');
 $('tabQuiz').onclick = () => show('quiz');
-$('mode').onchange = () => next();
 
-let current = null, dir = 'de-en', answered = false, correct = 0, total = 0, last = -1;
+// ---------- Abfrage ----------
 const norm = s => s.trim().toLowerCase().replace(/\s+/g, ' ');
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+let checked = new Set(); // ausgewählte Units im Startbildschirm
+let checkedInit = false;
 
-function next() {
-  $('feedback').textContent = '';
-  $('answer').value = '';
-  answered = false;
-  $('check').textContent = 'Prüfen';
-  if (!words.length) {
-    current = null;
-    $('dirLabel').textContent = '';
-    $('question').textContent = 'Noch keine Vokabeln – füge zuerst welche hinzu.';
-    $('quizForm').classList.add('hidden');
+function setPane(p) {
+  $('qSetup').classList.toggle('hidden', p !== 'setup');
+  $('qRun').classList.toggle('hidden', p !== 'run');
+  $('qDone').classList.toggle('hidden', p !== 'done');
+}
+
+function renderQuiz() {
+  const s = state.session;
+  if (s) {
+    // gelöschte Wörter aus der Warteschlange entfernen
+    s.queue = s.queue.filter(id => wordById(id));
+    s.wrong = s.wrong.filter(id => wordById(id));
+    if (s.state === 'feedback' && !wordById(s.last.id)) s.state = 'asking';
+  }
+  if (!s || s.paused) { renderSetup(); return; }
+  if (s.state === 'asking' && !s.queue.length) {
+    if (s.wrong.length) { s.round++; s.queue = shuffle(s.wrong); s.wrong = []; }
+    else { s.state = 'done'; save(); }
+  }
+  if (s.state === 'done') {
+    setPane('done');
+    $('doneInfo').textContent = `${s.total} Vokabeln, ${s.round} Runde(n), ${s.mistakes} Fehler insgesamt.`;
     return;
   }
-  $('quizForm').classList.remove('hidden');
-  let i;
-  do { i = Math.floor(Math.random() * words.length); } while (words.length > 1 && i === last);
-  last = i;
-  current = words[i];
-  const m = $('mode').value;
-  dir = m === 'mix' ? (Math.random() < .5 ? 'de-en' : 'en-de') : m;
+  setPane('run');
+  $('progressText').textContent = `Runde ${s.round} · noch ${s.queue.length} in dieser Runde` + (s.round === 1 ? '' : ' (Wiederholung)');
+  $('barFill').style.width = (100 * s.mastered / s.total) + '%';
+  const id = s.state === 'feedback' ? s.last.id : s.queue[0];
+  const w = wordById(id), dir = s.dirs[id] || 'de-en';
   $('dirLabel').textContent = dir === 'de-en' ? 'Deutsch → Englisch' : 'Englisch → Deutsch';
-  $('question').textContent = dir === 'de-en' ? current.de : current.en;
-  $('score').textContent = total ? `Richtig: ${correct} / ${total}` : '';
-  $('answer').focus();
+  $('question').textContent = dir === 'de-en' ? w.de : w.en;
+  if (s.state === 'asking') {
+    $('askBox').classList.remove('hidden'); $('fbBox').classList.add('hidden');
+    $('answer').value = ''; $('answer').focus();
+  } else {
+    $('askBox').classList.add('hidden'); $('fbBox').classList.remove('hidden');
+    const solution = dir === 'de-en' ? w.en : w.de;
+    if (s.last.ok) {
+      $('fbIcon').textContent = '😊';
+      $('fbText').innerHTML = '<span class="ok">Richtig!</span>';
+    } else {
+      const d = diff(s.last.answer, solution);
+      $('fbIcon').innerHTML = '<span class="bad">❌</span>';
+      $('fbText').innerHTML = `<div>Deine Antwort: ${d.typed || '<i>(leer)</i>'}</div><div style="margin-top:6px">Richtig wäre: ${d.solution}</div><div class="hint" style="margin-top:6px">Kommt in der nächsten Runde nochmal.</div>`;
+    }
+    $('nextBtn').focus();
+  }
+}
+
+// Zeichenvergleich (LCS): falsche Zeichen rot durchgestrichen, fehlende grün unterstrichen
+function diff(typed, solution) {
+  const a = typed.trim(), b = solution.trim();
+  const n = a.length, m = b.length;
+  const L = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    L[i][j] = a[i].toLowerCase() === b[j].toLowerCase() ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  let i = 0, j = 0, t = '', r = '';
+  while (i < n && j < m) {
+    if (a[i].toLowerCase() === b[j].toLowerCase()) { t += esc(a[i]); r += esc(b[j]); i++; j++; }
+    else if (L[i + 1][j] >= L[i][j + 1]) { t += `<span class="x">${esc(a[i])}</span>`; i++; }
+    else { r += `<span class="m">${esc(b[j])}</span>`; j++; }
+  }
+  while (i < n) t += `<span class="x">${esc(a[i++])}</span>`;
+  while (j < m) r += `<span class="m">${esc(b[j++])}</span>`;
+  return { typed: t, solution: r };
+}
+
+function renderSetup() {
+  setPane('setup');
+  const s = state.session;
+  $('resumeCard').classList.toggle('hidden', !(s && s.paused && s.state !== 'done'));
+  if (s && s.paused) {
+    const left = s.queue.length + s.wrong.length;
+    $('resumeInfo').textContent = `Runde ${s.round} · ${s.mastered} von ${s.total} Vokabeln geschafft · noch ${left} offen`;
+  }
+  if (!checkedInit) { checked = new Set(state.units.map(u => u.id)); checkedInit = true; }
+  $('unitChecks').innerHTML = '';
+  state.units.forEach(u => {
+    const l = document.createElement('label'); l.className = 'check';
+    const c = document.createElement('input'); c.type = 'checkbox'; c.checked = checked.has(u.id);
+    c.onchange = () => { c.checked ? checked.add(u.id) : checked.delete(u.id); };
+    l.append(c, document.createTextNode(` ${u.name} (${unitWords(u.id).length})`));
+    $('unitChecks').append(l);
+  });
+  $('setupMsg').textContent = '';
+}
+
+function startSession() {
+  const ids = state.units.filter(u => checked.has(u.id)).map(u => u.id);
+  const ws = state.words.filter(w => ids.includes(w.unit));
+  if (!ws.length) { $('setupMsg').textContent = 'Bitte mindestens eine Unit mit Vokabeln auswählen.'; return; }
+  const mode = $('mode').value, dirs = {};
+  ws.forEach(w => { dirs[w.id] = mode === 'mix' ? (Math.random() < .5 ? 'de-en' : 'en-de') : mode; });
+  state.session = { queue: shuffle(ws.map(w => w.id)), wrong: [], dirs, round: 1, total: ws.length, mastered: 0, mistakes: 0, state: 'asking', last: null, paused: false, mode, units: ids };
+  save(); renderQuiz();
 }
 
 function submitAnswer() {
-  if (!current) return;
-  if (answered) { next(); return; }
-  const solution = dir === 'de-en' ? current.en : current.de;
-  const ok = norm($('answer').value) === norm(solution);
-  total++; if (ok) correct++;
-  const fb = $('feedback');
-  fb.className = 'feedback ' + (ok ? 'ok' : 'bad');
-  fb.textContent = ok ? '✓ Richtig!' : '✗ Falsch – richtig ist: ' + solution;
-  $('score').textContent = `Richtig: ${correct} / ${total}`;
-  answered = true;
-  $('check').textContent = 'Weiter';
+  const s = state.session;
+  if (!s || s.state !== 'asking' || !s.queue.length) return;
+  const id = s.queue.shift(), w = wordById(id);
+  const dir = s.dirs[id], solution = dir === 'de-en' ? w.en : w.de;
+  const answer = $('answer').value;
+  const ok = norm(answer) === norm(solution);
+  if (ok) s.mastered++; else { s.wrong.push(id); s.mistakes++; }
+  s.last = { id, ok, answer };
+  s.state = 'feedback';
+  save(); renderQuiz();
 }
-$('check').onclick = submitAnswer;
-$('answer').addEventListener('keydown', e => { if (e.key === 'Enter') submitAnswer(); });
+function nextQuestion() {
+  const s = state.session;
+  if (!s || s.state !== 'feedback') return;
+  s.state = 'asking';
+  save(); renderQuiz();
+}
 
-// ---- Sicherung: Export/Import + automatische Speicherdatei (Chrome/Edge) ----
+$('startBtn').onclick = startSession;
+$('againBtn').onclick = () => {
+  const s = state.session;
+  if (s) { s.units.forEach(id => checked.add(id)); $('mode').value = s.mode; }
+  startSession();
+};
+$('backBtn').onclick = () => { state.session = null; save(); renderQuiz(); };
+$('check').onclick = submitAnswer;
+$('answer').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitAnswer(); } });
+$('nextBtn').onclick = nextQuestion;
+$('pauseBtn').onclick = () => { state.session.paused = true; save(); renderQuiz(); };
+$('resumeBtn').onclick = () => { state.session.paused = false; save(); renderQuiz(); };
+$('discardBtn').onclick = () => { state.session = null; save(); renderQuiz(); };
+// Enter im Feedback-Bildschirm = Weiter
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && state.session && state.session.state === 'feedback' && !$('qRun').classList.contains('hidden') && document.activeElement !== $('nextBtn') && e.target !== $('answer')) { e.preventDefault(); nextQuestion(); }
+});
+
+// ---------- Sicherung: Export/Import + automatische Speicherdatei (Chrome/Edge) ----------
 const status = t => { $('fileStatus').textContent = t; };
-const asJson = () => JSON.stringify({ vokabeln: words }, null, 2);
-let fileHandle = null;
+const asJson = () => JSON.stringify({ units: state.units, words: state.words, session: state.session }, null, 2);
 
 function idb() {
   return new Promise((res, rej) => {
@@ -205,16 +428,25 @@ async function writeFile() {
     status('Gespeichert in „' + fileHandle.name + '"');
   } catch (e) { status('Speichern in Datei fehlgeschlagen – bitte Datei neu verbinden.'); }
 }
-// jede Änderung zusätzlich in die Datei schreiben
-const baseSave = save;
-save = () => { baseSave(); writeFile(); };
 
 function applyData(text) {
   const d = JSON.parse(text);
-  const list = Array.isArray(d) ? d : d.vokabeln;
-  if (!Array.isArray(list)) throw new Error('format');
-  words = list.filter(w => w && w.de && w.en).map(w => ({ de: String(w.de), en: String(w.en) }));
-  save(); render();
+  if (Array.isArray(d.units) && Array.isArray(d.words)) {
+    state.units = d.units.filter(u => u && u.id && u.name);
+    state.words = d.words.filter(w => w && w.id && w.de && w.en && state.units.some(u => u.id === w.unit));
+    state.session = d.session || null;
+  } else { // altes Format: flache Liste
+    const list = Array.isArray(d) ? d : d.vokabeln;
+    if (!Array.isArray(list)) throw new Error('format');
+    const u = { id: uid(), name: 'Unit 1' };
+    state.units = [u];
+    state.words = list.filter(w => w && w.de && w.en).map(w => ({ id: uid(), de: String(w.de), en: String(w.en), unit: u.id }));
+    state.session = null;
+  }
+  if (!state.units.length) state.units.push({ id: uid(), name: 'Unit 1' });
+  state.activeUnit = state.units[0].id;
+  checkedInit = false;
+  save(); renderList();
 }
 
 $('btnExport').onclick = () => {
@@ -228,14 +460,14 @@ $('btnImport').onclick = () => $('fileIn').click();
 $('fileIn').onchange = async e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
-  try { applyData(await f.text()); status(words.length + ' Vokabeln importiert.'); }
+  try { applyData(await f.text()); status(state.words.length + ' Vokabeln importiert.'); }
   catch (err) { status('Import fehlgeschlagen: keine gültige Vokabeldatei.'); }
 };
 
 $('btnFile').onclick = async () => {
   if (!window.showSaveFilePicker) { status('Dein Browser unterstützt das nicht – bitte Export/Import nutzen (Chrome/Edge können es).'); return; }
   try {
-    if (fileHandle && (await fileHandle.requestPermission({ mode: 'readwrite' })) === 'granted') { await writeFile(); return; }
+    if (fileHandle && (await fileHandle.requestPermission({ mode: 'readwrite' })) === 'granted') { await loadFromFile(); return; }
     const stored = fileHandle || await kv('readonly', st => st.get('handle'));
     if (stored && (await stored.requestPermission({ mode: 'readwrite' })) === 'granted') {
       fileHandle = stored;
@@ -244,13 +476,12 @@ $('btnFile').onclick = async () => {
     }
     fileHandle = await showSaveFilePicker({ suggestedName: 'vokabeln.json', types: [{ description: 'Vokabeln', accept: { 'application/json': ['.json'] } }] });
     await kv('readwrite', st => st.put(fileHandle, 'handle'));
-    const text = await (await fileHandle.getFile()).text();
-    if (text.trim()) { try { applyData(text); } catch (e) { await writeFile(); } } else await writeFile();
+    await loadFromFile();
   } catch (e) { if (e.name !== 'AbortError') status('Datei konnte nicht verbunden werden (in dieser Ansicht evtl. blockiert) – Export/Import nutzen.'); }
 };
 async function loadFromFile() {
   const text = await (await fileHandle.getFile()).text();
-  if (text.trim()) applyData(text); else await writeFile();
+  if (text.trim()) { try { applyData(text); } catch (e) { await writeFile(); } } else await writeFile();
   status('Verbunden mit „' + fileHandle.name + '"');
 }
 (async () => {
@@ -263,7 +494,7 @@ async function loadFromFile() {
   } catch (e) {}
 })();
 
-render();
+renderList();
 </script>
 </body>
 </html>
